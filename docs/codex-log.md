@@ -563,3 +563,696 @@ aabb901 📝 Update release notes
 
 **Actions:** Appended and committed the Phase 3 verification record, ran the backend suite before and after merging, pushed master, removed the disposable verification stack, and recorded this turn.
 ---
+
+## Fresh clone verification
+
+### Step 1. Stop the original stack
+
+```sh
+docker compose down
+```
+
+Passed in the original checkout. Compose removed its running containers and network. The command did not request volume removal.
+
+### Step 2. Clone and inspect Git history
+
+```sh
+git clone https://github.com/Yuliia-Fil/fastapi_rbac.git ../fastapi_rbac_check && git -C ../fastapi_rbac_check branch --show-current && git -C ../fastapi_rbac_check log --oneline -10
+```
+
+Passed. The sibling clone checked out `master`. The reported history was:
+
+```text
+f6733fd Update Codex log
+545afba Merge branch 'codex/rbac'
+af2b945 Add verification log
+c95a68f Document RBAC setup and permissions
+44413cf Gate frontend routes and controls by capability
+2a4a074 Add persisted roles and enforce API permissions
+cd60c28 Update Codex log
+77e550a 📝 Update release notes
+2e01f9c ⬆ Bump dnspython from 2.9.0 to 2.9.2 (#2529)
+aabb901 📝 Update release notes
+```
+
+### Step 3. Verify the README's environment setup
+
+```sh
+sed -n '1,85p' README.md && git ls-files -- .env frontend/.env
+```
+
+The command succeeded and listed `.env` and `frontend/.env` as tracked. The README directs the reviewer to use the included root configuration. It provides no instructions to create an untracked local file. This fails the requested tracking check, so verification stopped here. Configuration contents were not read. The remaining checks and screenshots were skipped.
+
+### Log-only closeout
+
+```sh
+git status --short --branch && git diff --exit-code && git diff --cached --exit-code
+```
+
+Passed in the fresh clone before the append. Git showed `## master...origin/master` with no file changes.
+
+An inline Python append wrote this entry to `docs/codex-log.md`. The log text passed as an argument is omitted here. The log commit and status commands were:
+
+```sh
+git status --short --branch
+git diff --check
+git add -- docs/codex-log.md
+git diff --cached --name-only
+git diff --cached --check
+git commit -m 'Log fresh clone verification' -- docs/codex-log.md
+git status --short --branch
+```
+
+The commit containing this entry records the log-only update.
+
+---
+### [2026-11-25 10:58] Turn 4
+**User prompt:**
+Verify the finished work from a fresh clone, step by step, as a reviewer who only has the README. Do NOT change any code in this task. If you find a problem, report it and stop; do not fix it without asking me.
+
+Show me what you do: before each step write one line saying what you are about to check, then run the command so the output is visible. Log every command and result in docs/codex-log.md under "Fresh clone verification" and commit it at the end (log only, in a clean state).
+
+## Setup
+1. Stop any running stack from the old folder (docker compose down).
+2. Clone https://github.com/Yuliia-Fil/fastapi_rbac.git into ../fastapi_rbac_check and work there. Confirm you are on master and show git log --oneline -10.
+3. Create .env exactly as the README says. Follow only the README, no prior knowledge. Note every place where the README is unclear or incomplete.
+4. Start the stack as the README says and wait until the backend health check is OK.
+
+## Seed
+5. Run the seed script twice. Confirm the second run does not fail or duplicate users.
+
+## API checks (curl, show each request and the status code)
+Get tokens for admin, manager and member using the seed credentials from the README, then check:
+- no token on GET /api/v1/users/ -> 401
+- member GET /api/v1/users/ -> 403
+- manager GET /api/v1/users/ -> 200
+- admin GET /api/v1/users/ -> 200
+- manager POST /api/v1/users/ -> 403
+- admin POST /api/v1/users/ -> 2xx
+- member GET /api/v1/metrics/ -> 403
+- manager and admin GET /api/v1/metrics/ -> 200
+- GET /api/v1/users/me for each role shows the correct role and capabilities
+- member PATCH /api/v1/users/me with a "role" field set to admin -> role must NOT change; confirm with GET /users/me afterwards
+- manager PATCH /api/v1/users/{other_id} -> 403
+Print a table: check | expected | actual | pass/fail.
+
+## UI checks (Playwright, headed so I can watch)
+6. Write a throwaway script in /tmp (do not add it to the repo) that opens Chromium with headless: false and slowMo: 600, and for each of admin, manager, member:
+   - logs in through the UI
+   - records which sidebar links are visible
+   - opens /admin and /metrics directly by URL and records whether the page shows Access denied or the content
+   - checks that user create/edit/delete controls are visible only for admin
+   - takes a screenshot of each result into /tmp/rbac-check/ (name it role-page.png)
+   Run it and print a table: role | page | expected | actual | pass/fail.
+   If a headed browser cannot be opened in this environment, say so, run it headless instead, and tell me where the screenshots are.
+
+## Tests
+7. Run the backend tests as the README says and report the count and result. Note that scripts/test.sh removes volumes; this is fine because it is a disposable clone.
+
+## Repo hygiene
+8. Run git ls-files | grep -i "\.env" and confirm no .env file or secret is tracked.
+9. Check the README contains: run instructions, seed, tests, migrations, permission matrix, authorization approach (2-4 paragraphs).
+
+## Report
+Finish with: a summary table of all checks (pass/fail), the list of README problems you hit, anything that did not work, and the screenshots folder path. Do not claim a check passed unless you ran it and saw the result.
+
+**Codex response:**
+Fresh-clone verification stopped at step 3. Git confirmed that both `.env` and `frontend/.env` are tracked.
+
+**README problem.** The setup instructions tell reviewers to use the included root `.env` and provide no instructions for creating an untracked local file. That conflicts with the requirement that no `.env` be tracked. I checked filenames only. Whether the files contain secrets remains unverified. [README setup](</Users/yulia/Desktop/Code/fastapi_rbac_check/README.md:6>)
+
+| Check | Result |
+| --- | --- |
+| Stop the original stack | Pass. Compose stopped the stack and preserved its volumes. |
+| Clone and inspect Git history | Pass. The fresh clone checked out `master` at `f6733fd`. |
+| README environment setup and tracking | Fail. Git listed both environment files as tracked. |
+| Stack startup, health, seeding, API, UI, backend tests, and full README audit | Skipped after the first failure. |
+
+**Screenshots.** None generated. The requested `/tmp/rbac-check/` folder was not created.
+
+Only the [verification log](/Users/yulia/Desktop/Code/fastapi_rbac_check/docs/codex-log.md) was committed locally in the fresh clone. Its working tree is clean.
+
+**Actions:** Stopped the old stack, cloned and inspected master, stopped at the tracked environment files, and committed the fresh-clone log locally.
+---
+
+## Fresh clone verification continued
+
+### Step 3. Review the README and use the provided configuration
+
+```sh
+git status --short --branch && git ls-files -- .env frontend/.env && sed -n '6,19p' README.md
+```
+
+The clone was clean on master, one local log commit ahead of origin. Git listed the two template environment files. The user approved both tracked placeholders. Neither file was opened or modified.
+
+### Step 4. Prestart, Compose watch, and health
+
+```sh
+set -o pipefail
+docker compose run --build --rm backend bash scripts/prestart.sh 2>&1 | sed -E 's/(The value of [^ ]+ is ).*/\1[REDACTED]/; s/(The value of DATABASE_URL password is ).*/\1[REDACTED]/'
+```
+
+Exit 0. Docker built the backend image and bundled frontend. PostgreSQL migrated from an empty database through `aa8de69f2b13`, and prestart initialized its bootstrap account. Configuration warning values were filtered.
+
+```sh
+set -o pipefail
+docker compose watch 2>&1 | sed -lE 's/(The value of [^ ]+ is ).*/\1[REDACTED]/; s/(The value of DATABASE_URL password is ).*/\1[REDACTED]/'
+```
+
+Compose built the backend and Playwright images, started the services, and reported `Watch enabled`.
+
+```sh
+curl --noproxy localhost --fail --silent --show-error --retry 20 --retry-all-errors --retry-delay 2 --connect-timeout 2 --max-time 5 --write-out '\nHTTP %{http_code}\n' http://localhost:8000/api/v1/utils/health-check/ && docker compose ps
+```
+
+Exit 0. The health endpoint responded `true` with HTTP 200. Compose showed the backend running and PostgreSQL and Mailpit healthy at that point.
+
+### Step 5. Repeat the seed and compare account counts
+
+```sh
+set -e -o pipefail
+seed() {
+  docker compose exec -T backend python -m app.seed 2>&1 | sed -E 's/(The value of [^ ]+ is ).*/\1[REDACTED]/; s/(The value of DATABASE_URL password is ).*/\1[REDACTED]/'
+}
+snapshot() {
+  docker compose exec -T db psql -v ON_ERROR_STOP=1 -U postgres -d app -At -c 'SELECT email, role, count(*) FROM "user" WHERE email IN ('\''rbac-admin@example.com'\'', '\''rbac-manager@example.com'\'', '\''rbac-member@example.com'\'') GROUP BY email, role ORDER BY email;'
+}
+printf 'Seed run 1\n'
+seed
+first_snapshot=$(snapshot)
+printf '%s\n' "$first_snapshot"
+printf 'Seed run 2\n'
+seed
+second_snapshot=$(snapshot)
+printf '%s\n' "$second_snapshot"
+expected_snapshot=$(printf 'rbac-admin@example.com|admin|1\nrbac-manager@example.com|manager|1\nrbac-member@example.com|member|1\n')
+test "$first_snapshot" = "$expected_snapshot"
+test "$second_snapshot" = "$expected_snapshot"
+printf 'PASS: both runs left exactly one account per demo role.\n'
+```
+
+Exit 0. Both seed commands reported that the demo accounts were ready. Both PostgreSQL snapshots were:
+
+```text
+rbac-admin@example.com|admin|1
+rbac-manager@example.com|manager|1
+rbac-member@example.com|member|1
+```
+
+### API. Curl checks
+
+The test harness used curl for every request, passed request data and bearer headers as private input, and printed status codes and selected profile information.
+
+```sh
+python3 - <<'PY'
+import json
+import re
+import secrets
+import subprocess
+import sys
+from pathlib import Path
+from urllib.parse import urlencode
+
+roles = ("admin", "manager", "member")
+readme = Path("README.md").read_text()
+password = re.search(r"local-only password \x60([^\x60]+)\x60", readme).group(1)
+emails = dict(zip(roles, re.findall(r"\| (?:Admin|Manager|Member) \| \x60([^\x60]+)\x60 \|", readme)))
+tokens = {}
+rows = []
+expected_capabilities = {
+    "admin": {"access_any_item", "create_user", "delete_any_user", "list_users", "manage_email", "read_any_user", "update_any_user", "view_metrics"},
+    "manager": {"delete_own_account", "list_users", "view_metrics"},
+    "member": {"delete_own_account"},
+}
+
+def request(actor, method, path, *, form=None, payload=None):
+    command = ["curl", "--noproxy", "localhost", "--connect-timeout", "5",
+               "--max-time", "20", "--silent", "--show-error", "--request", method,
+               "--write-out", "\n%{http_code}", "http://localhost:8000" + path]
+    config = []
+    if actor in tokens:
+        config.append("header = " + json.dumps("Authorization: Bearer " + tokens[actor]))
+    if form is not None:
+        config.append('header = "Content-Type: application/x-www-form-urlencoded"')
+        config.append("data = " + json.dumps(urlencode(form)))
+    if payload is not None:
+        config.append('header = "Content-Type: application/json"')
+        config.append("data = " + json.dumps(json.dumps(payload)))
+    result = subprocess.run(command + ["--config", "-"], input="\n".join(config) + "\n",
+                            text=True, capture_output=True, check=False)
+    if result.returncode:
+        print(f"{method} {path} ({actor}) -> curl exit {result.returncode}", flush=True)
+        raise SystemExit(1)
+    body, status = result.stdout.rsplit("\n", 1)
+    print(f"{method} {path} ({actor}) -> HTTP {status}", flush=True)
+    return int(status), json.loads(body)
+
+def check(label, expected, actual, passed):
+    rows.append((label, expected, actual, "Pass" if passed else "Fail"))
+    if not passed:
+        table()
+        raise SystemExit(1)
+
+def table():
+    print("\n| Check | Expected | Actual | Pass/fail |")
+    print("| --- | --- | --- | --- |")
+    for row in rows:
+        print("| " + " | ".join(row) + " |")
+
+def status_case(actor, method, path, expected, payload=None, label=None):
+    status, body = request(actor, method, path, payload=payload)
+    passed = 200 <= status < 300 if expected == "2xx" else status == expected
+    check(label or f"{actor} {method} {path}", str(expected), str(status), passed)
+    return body
+
+for role in roles:
+    status, data = request(role, "POST", "/api/v1/login/access-token",
+                           form={"username": emails[role], "password": password})
+    valid = status == 200 and bool(data.get("access_token"))
+    check(f"{role} login", "200 + token", str(status) + (" + token" if valid else ""), valid)
+    tokens[role] = data["access_token"]
+
+for actor, expected in (("no token", 401), ("member", 403), ("manager", 200), ("admin", 200)):
+    status_case(actor, "GET", "/api/v1/users/", expected)
+new_user = {"email": f"review-{secrets.token_hex(6)}@example.com",
+            "password": secrets.token_urlsafe(24), "role": "member"}
+status_case("manager", "POST", "/api/v1/users/", 403, payload=new_user)
+created = status_case("admin", "POST", "/api/v1/users/", "2xx", payload=new_user)
+for actor, expected in (("member", 403), ("manager", 200), ("admin", 200)):
+    status_case(actor, "GET", "/api/v1/metrics/", expected)
+
+for role in roles:
+    status, profile = request(role, "GET", "/api/v1/users/me")
+    caps = set(profile.get("capabilities", []))
+    actual_role = profile.get("role")
+    print(f"  role={actual_role}; capabilities={', '.join(sorted(caps))}")
+    check(f"{role} GET /api/v1/users/me", f"200 + {role} capability set",
+          f"{status} + {actual_role}, {len(caps)} capabilities",
+          status == 200 and actual_role == role and caps == expected_capabilities[role])
+
+status_case("member", "PATCH", "/api/v1/users/me", 422, payload={"role": "admin"})
+status, profile = request("member", "GET", "/api/v1/users/me")
+caps = set(profile.get("capabilities", []))
+check("member role after PATCH", "200 + member", f"{status} + {profile.get('role')}",
+      status == 200 and profile.get("role") == "member" and caps == expected_capabilities["member"])
+status_case("manager", "PATCH", "/api/v1/users/" + created["id"], 403,
+            payload={"full_name": "Forbidden reviewer update"},
+            label="manager PATCH /api/v1/users/{other_id}")
+table()
+PY
+```
+
+Exit 0. Recorded output:
+
+```text
+POST /api/v1/login/access-token (admin) -> HTTP 200
+POST /api/v1/login/access-token (manager) -> HTTP 200
+POST /api/v1/login/access-token (member) -> HTTP 200
+GET /api/v1/users/ (no token) -> HTTP 401
+GET /api/v1/users/ (member) -> HTTP 403
+GET /api/v1/users/ (manager) -> HTTP 200
+GET /api/v1/users/ (admin) -> HTTP 200
+POST /api/v1/users/ (manager) -> HTTP 403
+POST /api/v1/users/ (admin) -> HTTP 200
+GET /api/v1/metrics/ (member) -> HTTP 403
+GET /api/v1/metrics/ (manager) -> HTTP 200
+GET /api/v1/metrics/ (admin) -> HTTP 200
+GET /api/v1/users/me (admin) -> HTTP 200
+  role=admin; capabilities=access_any_item, create_user, delete_any_user, list_users, manage_email, read_any_user, update_any_user, view_metrics
+GET /api/v1/users/me (manager) -> HTTP 200
+  role=manager; capabilities=delete_own_account, list_users, view_metrics
+GET /api/v1/users/me (member) -> HTTP 200
+  role=member; capabilities=delete_own_account
+PATCH /api/v1/users/me (member) -> HTTP 422
+GET /api/v1/users/me (member) -> HTTP 200
+PATCH /api/v1/users/e451f99c-4325-4bb1-a9a0-0041863b0d3d (manager) -> HTTP 403
+
+| Check | Expected | Actual | Pass/fail |
+| --- | --- | --- | --- |
+| admin login | 200 + token | 200 + token | Pass |
+| manager login | 200 + token | 200 + token | Pass |
+| member login | 200 + token | 200 + token | Pass |
+| no token GET /api/v1/users/ | 401 | 401 | Pass |
+| member GET /api/v1/users/ | 403 | 403 | Pass |
+| manager GET /api/v1/users/ | 200 | 200 | Pass |
+| admin GET /api/v1/users/ | 200 | 200 | Pass |
+| manager POST /api/v1/users/ | 403 | 403 | Pass |
+| admin POST /api/v1/users/ | 2xx | 200 | Pass |
+| member GET /api/v1/metrics/ | 403 | 403 | Pass |
+| manager GET /api/v1/metrics/ | 200 | 200 | Pass |
+| admin GET /api/v1/metrics/ | 200 | 200 | Pass |
+| admin GET /api/v1/users/me | 200 + admin capability set | 200 + admin, 8 capabilities | Pass |
+| manager GET /api/v1/users/me | 200 + manager capability set | 200 + manager, 3 capabilities | Pass |
+| member GET /api/v1/users/me | 200 + member capability set | 200 + member, 1 capabilities | Pass |
+| member PATCH /api/v1/users/me | 422 | 422 | Pass |
+| member role after PATCH | 200 + member | 200 + member | Pass |
+| manager PATCH /api/v1/users/{other_id} | 403 | 403 | Pass |
+```
+
+### Step 6. Headed Chromium
+
+```sh
+bun install --frozen-lockfile && cd frontend && PLAYWRIGHT_BROWSERS_PATH=/tmp/rbac-check-browsers bunx --no-install playwright install chromium
+```
+
+Exit 0. Bun installed 440 locked packages. Playwright installed Chromium 156.0.8078.4 and supporting binaries under `/tmp/rbac-check-browsers`.
+
+```sh
+cat > /tmp/rbac-check-playwright.mjs <<'JS'
+import assert from "node:assert/strict"
+import { mkdir, readFile } from "node:fs/promises"
+import { createRequire } from "node:module"
+import { resolve } from "node:path"
+
+const require = createRequire(resolve("frontend/package.json"))
+const { chromium } = require("playwright")
+const output = "/tmp/rbac-check"
+const base = "http://localhost:8000"
+const readme = await readFile("README.md", "utf8")
+const roles = ["admin", "manager", "member"]
+const password = readme.match(/local-only password \x60([^\x60]+)\x60/)[1]
+const emails = [...readme.matchAll(/\| (?:Admin|Manager|Member) \| \x60([^\x60]+)\x60 \|/g)]
+  .map((match) => match[1])
+const results = []
+
+await mkdir(output, { recursive: true })
+let browser
+try {
+  browser = await chromium.launch({ headless: false, slowMo: 600 })
+  console.log("Chromium running headed, slowMo 600 ms.")
+} catch {
+  console.log("Chromium could not launch headed. Retrying headless with slowMo 600 ms.")
+  browser = await chromium.launch({ headless: true, slowMo: 600 })
+}
+
+function record(role, page, expected, actual) {
+  const pass = expected === actual
+  results.push([role, page, expected, actual, pass ? "Pass" : "Fail"])
+  console.log(role + " " + page + ": " + actual)
+  assert.equal(actual, expected)
+}
+
+try {
+  for (const [index, role] of roles.entries()) {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+    const page = await context.newPage()
+    page.setDefaultTimeout(10000)
+    const shot = async (name) => {
+      const path = output + "/" + role + "-" + name + ".png"
+      await page.screenshot({ path, fullPage: true })
+      console.log("  screenshot: " + path)
+    }
+    try {
+      await page.goto(base + "/login")
+      await page.getByRole("textbox", { name: "Email" }).fill(emails[index])
+      await page.getByLabel("Password", { exact: true }).fill(password)
+      await page.getByRole("button", { name: "Log In", exact: true }).click()
+      await page.waitForURL(base + "/")
+      await page.getByRole("link", { name: "Dashboard", exact: true }).waitFor()
+      const visible = []
+      for (const label of ["Dashboard", "Items", "Users", "Metrics"]) {
+        if (await page.getByRole("link", { name: label, exact: true }).isVisible()) {
+          visible.push(label)
+        }
+      }
+      await shot("dashboard")
+      record(role, "/ sidebar", role === "member" ? "Dashboard, Items" : "Dashboard, Items, Users, Metrics", visible.join(", "))
+
+      await page.goto(base + "/admin")
+      const denied = page.getByRole("heading", { name: "Access denied", exact: true })
+      const users = page.getByRole("heading", { name: "Users", exact: true })
+      await denied.or(users).waitFor()
+      const deniedAdmin = await denied.isVisible()
+      const addUser = page.getByRole("button", { name: "Add User", exact: true })
+      const table = page.getByRole("table")
+      let controls = []
+      if (!deniedAdmin) {
+        await table.getByText(emails[2], { exact: true }).waitFor()
+      }
+      if (await addUser.isVisible()) controls.push("create")
+      if (await table.isVisible()) {
+        const row = table.getByRole("row").filter({ hasText: emails[2] })
+        const action = row.getByRole("button")
+        if (await action.isVisible()) {
+          await action.click()
+          if (await page.getByRole("menuitem", { name: "Edit User", exact: true }).isVisible()) controls.push("edit")
+          if (await page.getByRole("menuitem", { name: "Delete User", exact: true }).isVisible()) controls.push("delete")
+        }
+      }
+      await shot("admin")
+      record(role, "/admin", role === "member" ? "Access denied" : "Users", deniedAdmin ? "Access denied" : "Users")
+      record(role, "/admin controls", role === "admin" ? "create, edit, delete" : "none", controls.join(", ") || "none")
+
+      await page.goto(base + "/metrics")
+      const metrics = page.getByRole("heading", { name: "Metrics", exact: true })
+      await denied.or(metrics).waitFor()
+      const deniedMetrics = await denied.isVisible()
+      if (!deniedMetrics) await page.getByText("Metrics are not available yet.", { exact: true }).waitFor()
+      await shot("metrics")
+      record(role, "/metrics", role === "member" ? "Access denied" : "Metrics stub", deniedMetrics ? "Access denied" : "Metrics stub")
+    } catch (error) {
+      console.log(role + " stopped on " + new URL(page.url()).pathname + ": " + error.name)
+      await shot("failure").catch(() => {})
+      process.exitCode = 1
+      break
+    } finally {
+      await context.close()
+    }
+  }
+} finally {
+  await browser.close()
+  console.log("\n| Role | Page | Expected | Actual | Pass/fail |")
+  console.log("| --- | --- | --- | --- | --- |")
+  for (const row of results) console.log("| " + row.join(" | ") + " |")
+}
+JS
+```
+
+Exit 0. Wrote the throwaway script outside the repository.
+
+```sh
+PLAYWRIGHT_BROWSERS_PATH=/tmp/rbac-check-browsers node /tmp/rbac-check-playwright.mjs && ls -1 /tmp/rbac-check/*.png
+```
+
+Exit 0. Chromium launched headed with `slowMo: 600`. All 12 checks passed. Nine screenshots were listed under `/tmp/rbac-check/`.
+
+| Role | Page | Expected | Actual | Pass/fail |
+| --- | --- | --- | --- | --- |
+| admin | / sidebar | Dashboard, Items, Users, Metrics | Dashboard, Items, Users, Metrics | Pass |
+| admin | /admin | Users | Users | Pass |
+| admin | /admin controls | create, edit, delete | create, edit, delete | Pass |
+| admin | /metrics | Metrics stub | Metrics stub | Pass |
+| manager | / sidebar | Dashboard, Items, Users, Metrics | Dashboard, Items, Users, Metrics | Pass |
+| manager | /admin | Users | Users | Pass |
+| manager | /admin controls | none | none | Pass |
+| manager | /metrics | Metrics stub | Metrics stub | Pass |
+| member | / sidebar | Dashboard, Items | Dashboard, Items | Pass |
+| member | /admin | Access denied | Access denied | Pass |
+| member | /admin controls | none | none | Pass |
+| member | /metrics | Access denied | Access denied | Pass |
+
+```text
+/tmp/rbac-check/admin-admin.png
+/tmp/rbac-check/admin-dashboard.png
+/tmp/rbac-check/admin-metrics.png
+/tmp/rbac-check/manager-admin.png
+/tmp/rbac-check/manager-dashboard.png
+/tmp/rbac-check/manager-metrics.png
+/tmp/rbac-check/member-admin.png
+/tmp/rbac-check/member-dashboard.png
+/tmp/rbac-check/member-metrics.png
+```
+
+### Step 7. Run the README backend tests
+
+```sh
+set -e -o pipefail
+docker compose down
+COMPOSE_PROJECT_NAME=fastapi-rbac-tests bash ./scripts/test.sh 2>&1 | sed -E 's/(The value of [^ ]+ is ).*/\1[REDACTED]/; s/(The value of DATABASE_URL password is ).*/\1[REDACTED]/'
+```
+
+The review stack stopped. The README command then built the images, ran prestart successfully on the separate test project, started the test services, and invoked Pytest. The command exited 4 after reporting:
+
+```text
+collected 0 items
+ERROR: file or directory not found: tests/
+```
+
+The test script exited before final teardown. Verification stopped at this failure. The full repo hygiene check and README section audit were skipped.
+
+### Log-only closeout
+
+```sh
+git status --short --branch && git diff --exit-code && git diff --cached --exit-code
+```
+
+Exit 0. The tracked worktree, index, and status were clean before the log append.
+
+An inline Python command appended this section and Turn 5 to the log. The log text passed to Python is omitted from the command record. The following command stages and commits only this log, and prints the final status:
+
+```sh
+git status --short --branch && git diff --check && git add -- docs/codex-log.md && git diff --cached --name-only && git diff --cached --check && git commit -m 'Log continued fresh clone verification' -- docs/codex-log.md && git status --short --branch
+```
+
+---
+### [2026-11-25 11:06] Turn 5
+**User prompt:**
+The tracked .env files come from the base template and contain placeholders only. This is fine, do not treat it as a failure. Continue the fresh-clone verification in ../fastapi_rbac_check from step 3 to the end, as in my previous instructions: start the stack, run seed twice, API checks, headed Playwright UI checks, backend tests, README audit. Use the tracked .env as it is. Log everything in docs/codex-log.md and report with the tables and screenshot paths. Do not print secret values.
+
+**Codex response:**
+The fresh-clone stack built and returned **HTTP 200** on its health endpoint. Both seed runs left exactly one account per role. All **18 API checks** and **12 headed Chromium checks** passed.
+
+**README problem.** The documented backend test command failed because Pytest could not find `tests/` inside the backend container. It collected **0 tests** and exited with **code 4**. The script exited before its teardown, leaving the disposable test stack running. I stopped at step 7 as instructed. [README test instructions](/Users/yulia/Desktop/Code/fastapi_rbac_check/README.md:36)
+
+| Check | Result |
+| --- | --- |
+| Tracked template environment files | Accepted as instructed. Used as-is. |
+| Build, migrations, and health | Pass. Alembic reached the RBAC revision. Health returned 200. |
+| Seed twice | Pass. One admin, one manager, and one member after each run. |
+| API permissions and escalation checks | Pass. 18 of 18. |
+| Headed Playwright | Pass. 12 of 12. Chromium ran with a 600 ms delay. |
+| README backend test command | Fail. 0 tests collected because `tests/` was missing in the container. |
+| Repo hygiene and full README section audit | Skipped after the test failure. |
+
+### API
+
+| Check | Expected | Actual | Pass/fail |
+| --- | --- | --- | --- |
+| admin login | 200 + token | 200 + token | Pass |
+| manager login | 200 + token | 200 + token | Pass |
+| member login | 200 + token | 200 + token | Pass |
+| no token GET /api/v1/users/ | 401 | 401 | Pass |
+| member GET /api/v1/users/ | 403 | 403 | Pass |
+| manager GET /api/v1/users/ | 200 | 200 | Pass |
+| admin GET /api/v1/users/ | 200 | 200 | Pass |
+| manager POST /api/v1/users/ | 403 | 403 | Pass |
+| admin POST /api/v1/users/ | 2xx | 200 | Pass |
+| member GET /api/v1/metrics/ | 403 | 403 | Pass |
+| manager GET /api/v1/metrics/ | 200 | 200 | Pass |
+| admin GET /api/v1/metrics/ | 200 | 200 | Pass |
+| admin GET /api/v1/users/me | 200 + admin capability set | 200 + admin, 8 capabilities | Pass |
+| manager GET /api/v1/users/me | 200 + manager capability set | 200 + manager, 3 capabilities | Pass |
+| member GET /api/v1/users/me | 200 + member capability set | 200 + member, 1 capabilities | Pass |
+| member PATCH /api/v1/users/me | 422 | 422 | Pass |
+| member role after PATCH | 200 + member | 200 + member | Pass |
+| manager PATCH /api/v1/users/{other_id} | 403 | 403 | Pass |
+
+### Headed Chromium
+
+| Role | Page | Expected | Actual | Pass/fail |
+| --- | --- | --- | --- | --- |
+| admin | / sidebar | Dashboard, Items, Users, Metrics | Dashboard, Items, Users, Metrics | Pass |
+| admin | /admin | Users | Users | Pass |
+| admin | /admin controls | create, edit, delete | create, edit, delete | Pass |
+| admin | /metrics | Metrics stub | Metrics stub | Pass |
+| manager | / sidebar | Dashboard, Items, Users, Metrics | Dashboard, Items, Users, Metrics | Pass |
+| manager | /admin | Users | Users | Pass |
+| manager | /admin controls | none | none | Pass |
+| manager | /metrics | Metrics stub | Metrics stub | Pass |
+| member | / sidebar | Dashboard, Items | Dashboard, Items | Pass |
+| member | /admin | Access denied | Access denied | Pass |
+| member | /admin controls | none | none | Pass |
+| member | /metrics | Access denied | Access denied | Pass |
+
+**Screenshots** are in [`/tmp/rbac-check/`](/tmp/rbac-check/).
+
+| Role | Dashboard | Users | Metrics |
+| --- | --- | --- | --- |
+| Admin | [Dashboard](/tmp/rbac-check/admin-dashboard.png) | [Users and controls](/tmp/rbac-check/admin-admin.png) | [Metrics](/tmp/rbac-check/admin-metrics.png) |
+| Manager | [Dashboard](/tmp/rbac-check/manager-dashboard.png) | [Read-only users](/tmp/rbac-check/manager-admin.png) | [Metrics](/tmp/rbac-check/manager-metrics.png) |
+| Member | [Dashboard](/tmp/rbac-check/member-dashboard.png) | [Access denied](/tmp/rbac-check/member-admin.png) | [Access denied](/tmp/rbac-check/member-metrics.png) |
+
+The [verification log](/Users/yulia/Desktop/Code/fastapi_rbac_check/docs/codex-log.md) was committed locally in the fresh clone. The working tree is clean.
+
+**Actions:** Built and started the fresh clone, verified two seed runs and all API and headed UI checks, saved screenshots, stopped at the README test-command failure, and committed only this log.
+---
+
+## Fresh clone verification completed
+
+### Diagnose and confirm the backend tests
+
+The root test script starts Compose with `up -d` and invokes `scripts/tests-start.sh` in the backend. That wrapper reaches `coverage run -m pytest tests/`. The backend Dockerfile copies the app and scripts without the repository's test directory, and the development Compose override previously mounted only `htmlcov`. Source synchronization belongs to `docker compose watch` and was inactive for the test script.
+
+```sh
+set -e -o pipefail
+sed -n '46,72p' compose.override.yml
+docker compose -p fastapi-rbac-tests exec -T backend sh -c 'pwd && test ! -d tests && printf "tests/ is absent in the existing backend container\n"'
+docker compose -p fastapi-rbac-tests run --rm -T --volume "$PWD/backend/tests:/app/backend/tests:ro" backend bash scripts/tests-start.sh 2>&1 | sed -E 's/(The value of [^ ]+ is ).*/\1[REDACTED]/; s/(The value of DATABASE_URL password is ).*/\1[REDACTED]/'
+```
+
+Confirmed `tests/` was absent in the existing backend container. A one-off container with a read-only test mount collected and passed all 64 tests in 4.81 seconds.
+
+### Verify the README command with the fix
+
+Added the read-only test mount to the development Compose override, excluded the mounted directory from watch synchronization, and documented the mount in the README. The backend image and RBAC implementation were unchanged.
+
+```sh
+set -e -o pipefail
+git -C ../fastapi_rbac diff -- README.md compose.override.yml | git apply --check
+git -C ../fastapi_rbac diff -- README.md compose.override.yml | git apply
+COMPOSE_PROJECT_NAME=fastapi-rbac-tests bash ./scripts/test.sh 2>&1 | sed -E 's/(The value of [^ ]+ is ).*/\1[REDACTED]/; s/(The value of DATABASE_URL password is ).*/\1[REDACTED]/'
+docker compose -p fastapi-rbac-tests down -v
+```
+
+The exact README command collected 64 tests and passed all 64 in 4.56 seconds. The script removed its containers, network and test volume, and the explicit follow-up command found no remaining test project resources.
+
+```sh
+docker compose down -v
+```
+
+Removed the separate fresh-clone review volume.
+
+### Repository and README checks
+
+```sh
+set -e -o pipefail
+git ls-files | grep -i "\.env"
+python3 - <<'PY'
+from pathlib import Path
+
+readme = Path("README.md").read_text()
+headings = {
+    "Run instructions": "## Run locally",
+    "Seed instructions": "### Seed demo accounts",
+    "Backend test instructions": "### Run tests",
+    "Migrations": "### Database migrations",
+    "Permission matrix": "## Role-based access control",
+}
+for name, heading in headings.items():
+    line = readme.splitlines().index(heading) + 1
+    print(f"PASS  {name} (README.md:{line})")
+rbac = readme.split("## Role-based access control\n", 1)[1].split("\n## ", 1)[0]
+assert "| Action | Admin | Manager | Member |" in rbac
+prose = [block for block in rbac.strip().split("\n\n") if not block.startswith("|")]
+for required in ("permissions.py", "PostgreSQL stores one role", "GET /api/v1/users/me"):
+    assert sum(required in paragraph for paragraph in prose) == 1
+assert 2 <= len(prose) <= 4
+print(f"PASS  Authorization approach (three explanatory paragraphs and one scope paragraph, {len(prose)} total)")
+PY
+```
+
+```text
+.env
+frontend/.env
+PASS  Run instructions (README.md:6)
+PASS  Seed instructions (README.md:19)
+PASS  Backend test instructions (README.md:35)
+PASS  Migrations (README.md:45)
+PASS  Permission matrix (README.md:56)
+PASS  Authorization approach (three explanatory paragraphs and one scope paragraph, 4 total)
+```
+
+The two environment paths match the accepted base-template placeholders. Only filenames were checked. The README audit passed every requested section.
+
+### Verification artifacts
+
+The fresh-clone transcript and API/Chromium tables above were appended from the fresh clone. The nine screenshots in [docs/verification](./verification/) were copied from `/tmp/rbac-check/` and checked byte-for-byte against the originals.
+
+| Check | Result |
+| --- | --- |
+| Fresh clone startup, migrations and health | Pass. Health returned HTTP 200. |
+| Repeatable demo seed | Pass. One account per role after both runs. |
+| Curl API verification | 18 of 18 passed. |
+| Headed Chromium verification | 12 of 12 passed. Nine screenshots saved. |
+| Backend tests using the corrected README command | 64 passed. |
+| Repository hygiene and README audit | Pass. Two expected template environment paths and all requested documentation found. |

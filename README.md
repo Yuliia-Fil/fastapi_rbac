@@ -34,7 +34,7 @@ With a host-run backend, use `FASTAPI_ENV=development uv run python -m app.seed`
 
 ### Run tests
 
-Stop the regular dev stack before starting the test project so the published ports are free. Run the test script from the repository root.
+Stop the regular dev stack before starting the test project so the published ports are free. Run the test script from the repository root. Docker Compose applies `compose.override.yml` automatically and mounts `backend/tests` read-only in the backend container.
 
 ```sh
 COMPOSE_PROJECT_NAME=fastapi-rbac-tests bash ./scripts/test.sh

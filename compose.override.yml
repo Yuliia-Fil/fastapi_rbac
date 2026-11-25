@@ -50,6 +50,7 @@ services:
           target: /app/backend
           ignore:
             - .venv
+            - tests
         - path: ./backend/pyproject.toml
           action: rebuild
         - path: ./frontend
@@ -62,6 +63,7 @@ services:
     # TODO: remove once coverage is done locally
     volumes:
       - ./backend/htmlcov:/app/backend/htmlcov
+      - ./backend/tests:/app/backend/tests:ro
     environment:
       FASTAPI_ENV: "development"
       SMTP_HOST: "mailpit"
