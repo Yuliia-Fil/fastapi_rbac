@@ -1,0 +1,7 @@
+{
+	admin off
+}
+
+{$CADDY_SITE} {
+	reverse_proxy ghost:2368
+}

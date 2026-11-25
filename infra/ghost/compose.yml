@@ -1,0 +1,78 @@
+name: ghost
+
+services:
+  caddy:
+    image: caddy:2.11.9-alpine
+    user: "10000:10000"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: "0"
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      CADDY_SITE: ${CADDY_SITE:?Set CADDY_SITE}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy-data:/data
+      - ./caddy-config:/config
+    depends_on:
+      ghost:
+        condition: service_healthy
+
+  ghost:
+    image: ghost:6.79.0-alpine
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      url: ${GHOST_URL:?Set GHOST_URL}
+      database__client: mysql
+      database__connection__host: mysql
+      database__connection__user: ghost
+      database__connection__password: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
+      database__connection__database: ghost
+    volumes:
+      - ./content:/var/lib/ghost/content
+    networks: [default, database]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:2368/', {redirect:'manual'}).then(r => process.exit(r.status < 400 ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  mysql:
+    image: mysql:8.0.46
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ghost
+      MYSQL_USER: ghost
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks: [database]
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'MYSQL_PWD="$${MYSQL_PASSWORD}" mysql --protocol=TCP -h 127.0.0.1 -u "$${MYSQL_USER}" "$${MYSQL_DATABASE}" -e "SELECT 1" >/dev/null'
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+networks:
+  database:
+    internal: true
+
+volumes:
+  mysql_data:
