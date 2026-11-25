@@ -1293,3 +1293,103 @@ c95a68f Document RBAC setup and permissions
 
 **Actions:** Diagnosed the missing test mount, verified both runs, audited the README and tracked environment paths, copied nine screenshots, imported the fresh-clone log and result tables, and committed, rebased, and pushed master.
 ---
+
+---
+### [2026-11-25 11:22] Turn 7
+**User prompt:**
+New task in this same repo. Do not change the RBAC application code (backend/ and frontend/). Work in 3 strict phases and stop after phase 2 until I approve.
+
+## Task (infrastructure question)
+
+Develop a one-click script to deploy the Ghost blog platform at a cloud provider (AWS, GCP, Azure, Hetzner, etc.) with NO public SSH access: administration only through tunnels (any provider/app).
+
+## Setup
+
+- Work on a branch codex/ghost-deploy created from master. Put everything in a new folder infra/ghost/.
+- Keep logging every turn (my prompt verbatim, your reply, actions) in docs/codex-log.md as before. Never log secrets, use [REDACTED].
+
+## Phase 1: Options (read-only except the log)
+
+Briefly compare 2-3 realistic approaches and recommend one. Consider at least:
+- Provider: Hetzner vs AWS (and optionally GCP/Azure): cost, simplicity of a one-click setup, quality of the Terraform provider.
+- Tunnel for admin access without port 22 open: e.g. AWS SSM Session Manager (no inbound ports at all), Tailscale, Cloudflare Tunnel. State how shell access works with each.
+- How Ghost is run: Docker Compose (Ghost + MySQL 8 + reverse proxy with automatic HTTPS, e.g. Caddy) vs Ghost-CLI. Prefer reproducible and simple.
+- Public exposure: only 80/443 open (or served through the tunnel), nothing else.
+Give a short table and a recommendation with reasons. List which credentials/accounts I would need to provide (cloud API token, domain, tunnel account) and what can be tested without them.
+
+## Phase 2: Plan
+
+Write a concise plan covering:
+- Architecture (short text or table, no diagram).
+- Exact files to create under infra/ghost/ (IaC such as Terraform, cloud-init/user-data, docker-compose, the one-click deploy script, a destroy script, an example variables file).
+- How "one click" works: a single command (for example ./deploy.sh) that checks prerequisites, reads variables from an untracked file or environment, provisions infrastructure, installs Ghost, sets up the tunnel, and prints the blog URL and the command to open a shell through the tunnel.
+- Security: firewall allowing only 80/443 inbound, SSH closed to the public, tunnel-only access, secrets handling (no secrets in git, .gitignore entries, *.example variables file), automatic security updates, non-root containers where possible, simple backups of database and content.
+- Idempotency and teardown.
+- Free verification only: terraform fmt/validate, shellcheck, docker compose config, plan/dry-run mode. State clearly what cannot be verified without real cloud credentials.
+- Risks, assumptions, estimated monthly cost, and questions for me.
+
+Then STOP and wait for my explicit approval. Do not start Phase 3 without it.
+
+## Phase 3: Implement (only after approval)
+
+- Follow the approved plan. Small, meaningful commits on codex/ghost-deploy.
+- Do NOT create real cloud resources and do NOT run anything that costs money.
+- Never commit secrets. Add real variable files and state files to .gitignore.
+- Write infra/ghost/README.md: prerequisites, required credentials, how to run the one-click deploy, how to open a shell through the tunnel, how to verify port 22 is closed from the internet, how to update, back up and destroy, and a short explanation of the security design.
+- Run all free verification steps and record exact commands and results in docs/codex-log.md. State what is NOT verified because no real deployment was run.
+
+## Phase 4: Merge to master (automatic, only if everything is OK)
+
+Merge only if ALL of these are true:
+- every free verification command passed;
+- no secrets, state files or real variable files are tracked (git ls-files check; the template .env files with placeholders are fine);
+- git status is clean and only infra/ghost/ and docs/codex-log.md changed compared to master (no changes in backend/ or frontend/);
+- the RBAC backend tests still pass if you can run them; otherwise say you could not.
+
+If all conditions are met: git checkout master, git pull --rebase origin master, git merge codex/ghost-deploy, git push origin master (no force-push), keep the branch. If any condition fails, do NOT merge: stop and report what failed.
+
+Finish with: summary of what was done, verification results, what is not verified, git log --oneline (last 8), and whether the merge happened.
+
+**Codex response:**
+## Phase 1 · Options
+
+I recommend **AWS EC2 with Systems Manager Session Manager**. Hetzner is cheaper, but AWS can enroll the host through its instance role. The deploy script can wait for that channel and finish installation without an SSH key or a separate tunnel enrollment secret. [AWS Session Manager setup](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-getting-started.html)
+
+| Approach | Cost and Terraform setup | Shell and public exposure |
+| --- | --- | --- |
+| **AWS EC2 + Session Manager** | About **$30–31/month** in `us-east-1` for a 4 GiB Graviton instance, 20 GiB of GP3 storage, one public IPv4 address, and basic DNS. The HashiCorp AWS provider covers networking, IAM, EC2, and Route 53. IAM adds setup work. | `aws ssm start-session --target INSTANCE_ID` opens a shell through the outbound agent. SSM needs zero inbound ports. The blog opens only TCP 80 and 443. [AWS provider](https://github.com/hashicorp/terraform-provider-aws) · [EC2](https://aws.amazon.com/ec2/pricing/on-demand/) · [EBS](https://aws.amazon.com/ebs/general-purpose/) · [IPv4](https://aws.amazon.com/vpc/pricing/) · [DNS](https://aws.amazon.com/route53/pricing/) · [Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-sessions-start.html) |
+| **Hetzner + Tailscale SSH** | A German CX23 is roughly **€5.49/month before IPv4 and tax**. The official Hetzner Terraform provider is a good fit for a small VM and firewall. Automated tailnet enrollment adds a tag, an auth key, and an access policy. | From a device on the approved tailnet, run `ssh ghostops@HOSTNAME`. Tailscale handles SSH on the private interface. The cloud firewall exposes only 80 and 443 for the blog. [Hetzner pricing](https://docs.hetzner.com/general/infrastructure-and-availability/price-adjustment/) · [Hetzner provider](https://github.com/hetznercloud/terraform-provider-hcloud) · [Tailscale SSH](https://tailscale.com/docs/features/tailscale-ssh) |
+| **Hetzner + Cloudflare Tunnel and Access** | Same VM class. Budget separately for DNS and any Cloudflare plan features you use. Setup spans two providers and requires a tunnel connector token and an Access policy. | Connect with client-side `cloudflared` and native SSH, or use the Access browser terminal. The VM can accept zero public inbound ports if the blog is also served through Cloudflare. [Cloudflare SSH options](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/) |
+
+Use **Docker Compose with pinned Ghost, MySQL 8, and Caddy**. It gives the site an explicit service configuration, automated HTTPS, and a repeatable update path. Ghost-CLI is a viable Ubuntu-based alternative with more installation state on the host. I’ll pin the MySQL release supported by Ghost’s production Compose stack. [Ghost hosting](https://docs.ghost.org/hosting/) · [Ghost production Compose](https://github.com/TryGhost/ghost-docker/blob/main/compose.yml)
+
+## Phase 2 · Implementation plan
+
+**Architecture.** One Ubuntu LTS EC2 instance with an encrypted disk, a stable IPv4 address, and a DNS record in an existing Route 53 public hosted zone. Caddy serves the blog on 80 and 443. Ghost and MySQL use Docker networks without public port mappings. The host has no SSH listener or public port 22 rule. I’m interpreting tunnel-only administration to include both the shell and the Ghost editor. The public proxy blocks Ghost Admin paths, while a separate loopback HTTPS listener serves the editor through SSM port forwarding. The setup guide will show how to trust that listener’s private CA and verify access through the tunnel. [Ghost Admin HTTPS guidance](https://docs.ghost.org/hosting/) · [SSM port forwarding](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-sessions-start.html)
+
+**Files under `infra/ghost/`**
+
+| Files | Purpose |
+| --- | --- |
+| `versions.tf`, `.terraform.lock.hcl`, `main.tf`, `variables.tf`, `outputs.tf` | Pin the provider and define the network, security group, VM, IAM instance profile, and DNS record. |
+| `user-data.sh.tftpl`, `configure-host.sh` | Bootstrap the host, then configure or upgrade the application through SSM Run Command. |
+| `compose.yml`, `Caddyfile`, `backup.sh` | Run the three services, separate public and private routes, and back up MySQL and Ghost content with rotation. |
+| `deploy.sh`, `destroy.sh`, `terraform.tfvars.example`, `.gitignore` | Provide the deploy and teardown commands, example inputs, and ignores for real variables, state, plans, and local secrets. |
+| `tests/ghost.tftest.hcl`, `README.md` | Test the infrastructure plan with a mocked provider and document deployment, shell and editor access, external port checks, updates, backups, restore, and teardown. |
+
+**One command.** After you configure an AWS CLI profile and fill in the local variables file, `./deploy.sh` checks tools and inputs, applies Terraform, waits for SSM and host bootstrap, configures Compose over SSM, and checks that the public site responds over HTTPS. It prints the blog URL, the exact shell command, and the editor forwarding command. A real deployment will need an AWS account, a short-lived local AWS profile authorized for EC2, IAM, SSM, and the designated Route 53 zone, plus a domain or subdomain you control. The selected design needs no separate tunnel account.
+
+**Security and operations.** Scope SSM access to the deployment, require IMDSv2, generate database passwords on the host, and keep them out of Terraform, user data, and command logs. Enable unattended OS security updates and run containers as non-root where the images support it. Preserve data volumes and existing credentials on redeploy. Reject a routine plan that would replace or delete the instance. The destroy script will show what it will remove and require confirmation after the operator copies an encrypted backup off the VM. Local backups share the VM’s failure domain.
+
+**Free verification and merge gate.** Run `terraform fmt -check -recursive`, `terraform init -backend=false`, `terraform validate`, and a mocked, plan-only `terraform test`. Run ShellCheck, `docker compose config --quiet` with dummy values, and `./deploy.sh --dry-run` with no AWS calls. A local Compose smoke test can check public and private routing. Live provisioning, IAM behavior, SSM enrollment and forwarding, public DNS and certificate issuance, and an external port-22 check remain unverified without a real deployment. After approval I’ll record exact results, check the allowed diff and tracked files in a clean checkout, and run the RBAC backend suite if Docker is available. The merge remains conditional on your Phase 4 checks. [Terraform provider mocking](https://developer.hashicorp.com/terraform/language/tests/mocking)
+
+**Assumptions and questions for approval**
+
+1. Is AWS in `us-east-1` at about **$30–31/month** acceptable? The estimate excludes domain registration, tax, and variable traffic or backup storage. A single VM has downtime during host maintenance.
+2. Do you have a Route 53 hosted zone and a preferred blog hostname? If DNS is hosted elsewhere, the plan needs either delegation or a provider-specific DNS step.
+3. Is an editorial blog with a tunnel-only editor sufficient? Public search integrations, membership, and newsletters are outside the baseline. If you need them, we should test their public routes and email dependencies explicitly.
+
+I created `codex/ghost-deploy` from `master` and committed only the conversation log. The existing untracked `AGENTS.md` is still present. Implementation is paused pending your explicit approval.
+
+**Actions:** Inspected Git and available tools, consulted provider and Ghost documentation, created codex/ghost-deploy from master, and appended the options and plan to the log.
+---
