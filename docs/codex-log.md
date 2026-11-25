@@ -506,3 +506,60 @@ git diff --check origin/master...HEAD && git log -4 --oneline && git status --sh
 - Phase 3 used a disposable database, a source-mounted backend image, and the built frontend. A fresh Docker image build, `docker compose watch`, and the root volume-resetting `scripts/test.sh` were not run. The same backend coverage wrapper ran directly in the disposable container.
 - Firefox and WebKit were not run. The repository's enabled Playwright browser project is Chromium.
 - No production or staging deployment was exercised. Metrics has a placeholder response and no production data source to verify.
+
+---
+### [2026-11-25 10:55] Turn 3
+**User prompt:**
+Do the following in order. Log this turn in docs/codex-log.md as usual.
+
+## 1. Add a verification section to docs/codex-log.md
+
+Append a section "Verification and commands" with:
+- Every command you ran during Phase 3 (setup, migrations, seed, tests, build, type-check, lint, Playwright, docker compose), in the order you ran them, each in a code block.
+- For each command: its purpose and the result (pass/fail, number of tests, errors you hit and how you fixed them).
+- A summary table: check | command | result. It must include: Alembic upgrade and legacy role backfill, seed script (both runs), backend tests (64), Playwright (64 Chromium), frontend build, TypeScript check, backend lint/type checks, Biome.
+- Anything you did NOT verify or skipped (e.g. downgrade check), with the reason.
+
+Rules: use only commands you actually ran; do not invent or reconstruct results from memory. If you are unsure whether you ran something, say so. Do not include secrets (SECRET_KEY, passwords from .env). The documented local seed credentials from the README are fine.
+
+## 2. Final checks before merging
+
+- Run git status and confirm the working tree is clean except for the log changes.
+- Commit the log: "Add verification log".
+- Re-run the backend tests once and confirm the result matches the log.
+
+## 3. Merge into master
+
+- git checkout master
+- git pull origin master
+- git merge codex/rbac (no fast-forward is fine; if there are conflicts, resolve them and tell me what they were)
+- Run the backend tests again on master.
+- git push origin master
+- Do NOT delete the codex/rbac branch.
+
+## 4. Report
+
+Reply with: the final git log --oneline (last 10 commits), confirmation that master contains the RBAC work, and the test result on master.
+
+**Codex response:**
+Merged `codex/rbac` into `master` without conflicts and pushed it to GitHub. The feature branch remains available. [View master](https://github.com/Yuliia-Fil/fastapi_rbac/tree/master).
+
+**Backend tests passed on both branches.** The pre-merge run matched Phase 3 with **64 passed**, and `master` passed **64 tests in 4.10 seconds**. The tracked working tree is clean. The pre-existing `AGENTS.md` remains untracked.
+
+The last 10 commits at the tested merge, before the separate commit recording this reply:
+
+```text
+545afba Merge branch 'codex/rbac'
+af2b945 Add verification log
+c95a68f Document RBAC setup and permissions
+44413cf Gate frontend routes and controls by capability
+2a4a074 Add persisted roles and enforce API permissions
+cd60c28 Update Codex log
+77e550a 📝 Update release notes
+2e01f9c ⬆ Bump dnspython from 2.9.0 to 2.9.2 (#2529)
+aabb901 📝 Update release notes
+42e7ed7 ⬆ Bump the npm-packages group across 1 directory with 30 updates (#2525)
+```
+
+**Actions:** Appended and committed the Phase 3 verification record, ran the backend suite before and after merging, pushed master, removed the disposable verification stack, and recorded this turn.
+---
