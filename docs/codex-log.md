@@ -180,3 +180,329 @@ Setup, seed credentials, and the permission matrix are in the [README](/Users/yu
 
 **Actions:** Implemented and committed backend and frontend RBAC, regenerated the SDK and route tree, verified migrations, seeding, tests, builds and lint, and updated the README and conversation log.
 ---
+
+## Verification and commands
+
+### Phase 3 command record
+
+Entries follow the order the commands were submitted. Several commands ran concurrently. Commands are shown from the Phase 3 tool transcript. Tool polling and direct patch operations did not invoke shell commands. Inline source-edit and conversation-log payloads are abbreviated where indicated. Default configuration warnings and test bearer headers are omitted.
+
+#### 1. Checked the starting workspace and runtime. Node dependencies and host uv were absent. The sandbox denied the Docker socket, so later Docker commands used the approved elevated access.
+
+```sh
+git status --short --branch; ls -d .venv node_modules frontend/node_modules; which -a uv bun docker; ls /opt/homebrew/bin/uv /Users/yulia/.local/bin/uv; docker info --format '{{.ServerVersion}}'; docker compose ps
+```
+
+#### 2. Read the role, auth, test helper, and router code. The search identified legacy role references.
+
+```sh
+cat backend/app/{models.py,api/deps.py,api/routes/items.py,initial_data.py}; cat backend/tests/{utils/utils.py,utils/user.py}; cat frontend/src/routes/__root.tsx; git ls-files '*AGENTS.md'; rg -n 'is_superuser|Superuser|Admin|danger-zone' backend/tests frontend/tests
+```
+
+#### 3. Docker reported version 28.5.1. The disposable stack failed to start because the existing dev stack owned published SMTP port 1025.
+
+```sh
+docker info --format '{{.ServerVersion}}' && docker compose -p fastapi-rbac-verification up -d --wait db mailpit
+```
+
+#### 4. Initial install failed inside the sandbox because registry downloads were refused.
+
+```sh
+bun install --frozen-lockfile
+```
+
+#### 5. Checked local tool paths, Python 3.14, project config, and the migration predecessor. The queried uv directories were absent.
+
+```sh
+ls -d /opt/homebrew /usr/local/bin /Users/yulia/.local/share/uv /Users/yulia/.cache/uv; which -a python3 pipx brew; cat .python-version; sed -n '1,120p' backend/pyproject.toml; cat backend/app/alembic/versions/fe56fa70289e_add_created_at_to_user_and_item.py
+```
+
+#### 6. Approved network retry succeeded and installed 438 locked packages.
+
+```sh
+bun install --frozen-lockfile
+```
+
+#### 7. Confirmed the port conflict and availability of backend and Playwright images. The database became healthy using the base Compose file with no published ports.
+
+```sh
+docker ps --format '{{.Names}} {{.Image}} {{.Ports}}' && docker image ls --format '{{.Repository}}:{{.Tag}}' && docker compose -f compose.yml -p fastapi-rbac-verification up -d --wait db
+```
+
+#### 8. Exported development OpenAPI from the current backend source mounted in the existing image. Exited successfully.
+
+```sh
+docker compose -f compose.yml -p fastapi-rbac-verification run --no-deps --rm -e FASTAPI_ENV=development -v "$PWD/backend/app:/app/backend/app:ro" backend python -c 'import app.main; import json; print(json.dumps(app.main.app.openapi()))' > frontend/openapi.json
+```
+
+#### 9. Applied the template revisions through the pre-RBAC migration on disposable PostgreSQL. Passed.
+
+```sh
+docker compose -f compose.yml -p fastapi-rbac-verification run --no-deps --rm -e FASTAPI_ENV=development -v "$PWD/backend/app:/app/backend/app:ro" backend alembic upgrade fe56fa70289e
+```
+
+#### 10. Read the Docker setup, existing authorization assertions, and frontend examples. Passed.
+
+```sh
+cat backend/Dockerfile; sed -n '1,110p' compose.yml; rg -n 'detail|privileges|Super users' backend/tests/api/routes/{test_users,test_items}.py; sed -n '1,100p' frontend/src/components/Admin/{AddUser,EditUser}.tsx; sed -n '165,230p' frontend/src/components/Admin/{AddUser,EditUser}.tsx; cat frontend/src/components/Common/ErrorComponent.tsx; cat frontend/src/components/UserSettings/UserInformation.tsx
+```
+
+#### 11. Regenerated the API client with Hey API 0.97.3. Passed.
+
+```sh
+bun run --filter frontend generate-client
+```
+
+#### 12. Read test cases and frontend types. Passed.
+
+```sh
+sed -n '1,115p' backend/tests/crud/test_user.py; sed -n '1,83p' backend/tests/api/routes/test_users.py; sed -n '45,110p' backend/tests/api/routes/test_login.py; sed -n '1,105p' backend/app/core/config.py; sed -n '1,235p' frontend/src/components/Admin/EditUser.tsx; cat frontend/src/components/Admin/columns.tsx; cat frontend/tsconfig.build.json
+```
+
+#### 13. Updated existing tests for role fields and shared forbidden messages. This code-edit command succeeded. The placeholder omits its inline source-edit payload.
+
+```sh
+python3 -c '<inline Python edits to test_users.py, test_login.py, and test_user.py>'
+```
+
+#### 14. Inserted two legacy rows, applied revision aa8de69f2b13, and verified the migrated roles were admin and member. Alembic reported no outstanding upgrade operations.
+
+```sh
+docker compose -f compose.yml -p fastapi-rbac-verification exec -T db psql -v ON_ERROR_STOP=1 -U postgres -d app -c 'INSERT INTO "user" (id, email, hashed_password, is_active, is_superuser) VALUES ('\''91000000-0000-4000-8000-000000000001'\'', '\''legacy-admin@example.com'\'', '\''fixture'\'', true, true), ('\''91000000-0000-4000-8000-000000000002'\'', '\''legacy-member@example.com'\'', '\''fixture'\'', true, false);' && docker compose -f compose.yml -p fastapi-rbac-verification run --no-deps --rm -e FASTAPI_ENV=development -e PYTHONWARNINGS=ignore::UserWarning -v "$PWD/backend/app:/app/backend/app:ro" backend alembic upgrade head && docker compose -f compose.yml -p fastapi-rbac-verification run --no-deps --rm -e FASTAPI_ENV=development -e PYTHONWARNINGS=ignore::UserWarning -v "$PWD/backend/app:/app/backend/app:ro" backend alembic check && docker compose -f compose.yml -p fastapi-rbac-verification exec -T db psql -v ON_ERROR_STOP=1 -U postgres -d app -c 'DO $$ BEGIN IF (SELECT count(*) FROM "user" WHERE (email, role) IN (('\''legacy-admin@example.com'\'', '\''admin'\''), ('\''legacy-member@example.com'\'', '\''member'\''))) <> 2 THEN RAISE EXCEPTION '\''Legacy role backfill failed'\''; END IF; END $$; SELECT email, role FROM "user" ORDER BY email;'
+```
+
+#### 15. Reviewed changed files and browser configuration. The Chrome cache glob had no matches, so Chromium used the existing Docker image.
+
+```sh
+git status --short; git diff --stat; rg -n 'Admin|Superuser|danger.zone|currentUser' frontend/tests frontend/src/client/index.ts frontend/src/components/UserSettings/DeleteConfirmation.tsx; sed -n '1,115p' frontend/playwright.config.ts; ls -d /Users/yulia/Library/Caches/ms-playwright/*
+```
+
+#### 16. Started isolated Mailpit with no host port, ran the seed twice, and ran the backend coverage wrapper. Both seed runs passed and all 64 backend tests passed.
+
+```sh
+docker run -d --rm --name fastapi-rbac-verification-smtp --network fastapi-rbac-verification_default --network-alias mailpit axllent/mailpit && docker compose -f compose.yml -p fastapi-rbac-verification run --no-deps --rm -e FASTAPI_ENV=development -e PYTHONWARNINGS=ignore::UserWarning -v "$PWD/backend/app:/app/backend/app:ro" -v "$PWD/backend/tests:/app/backend/tests:ro" -e SMTP_HOST=mailpit -e SMTP_PORT=1025 -e SMTP_TLS=false backend bash -c 'python -m app.seed && python -m app.seed && bash scripts/tests-start.sh'
+```
+
+#### 17. Ruff passed and formatted three files. Mypy rejected Pydantic ConfigDict on SQLModel subclasses, so the input-model configuration was revised.
+
+```sh
+docker compose -f compose.yml -p fastapi-rbac-verification run --no-deps --rm -e FASTAPI_ENV=development -e PYTHONWARNINGS=ignore::UserWarning -v "$PWD/backend/app:/app/backend/app" -v "$PWD/backend/tests:/app/backend/tests" backend bash -c 'ruff check --fix app tests/api/routes/test_rbac.py && ruff format app tests/api/routes/test_rbac.py && bash scripts/lint.sh'
+```
+
+#### 18. Reviewed the browser assertions, container image, lint configuration, and README. Passed.
+
+```sh
+sed -n '98,185p' frontend/tests/admin.spec.ts; cat frontend/Dockerfile.playwright; cat frontend/biome.json; sed -n '1,130p' README.md; git status --short --untracked-files=normal
+```
+
+#### 19. Removed temporary OpenAPI and applied focused frontend formatting. Biome checked 17 files and fixed seven.
+
+```sh
+python3 -c 'from pathlib import Path; Path("frontend/openapi.json").unlink()' && cd frontend && bunx --no-install biome check --write src/main.tsx src/components/Admin src/components/Common/AccessDenied.tsx src/components/Sidebar/AppSidebar.tsx src/hooks/useAuth.ts src/lib/permissions.ts src/routes/__root.tsx src/routes/_layout.tsx src/routes/_layout/admin.tsx src/routes/_layout/metrics.tsx src/routes/_layout/settings.tsx tests/admin.spec.ts
+```
+
+#### 20. Passed mypy, ty, Ruff, and focused lint after the initial model adjustment. The subsequent runtime test exposed a behavior gap in that adjustment.
+
+```sh
+docker compose -f compose.yml -p fastapi-rbac-verification run --no-deps --rm -e FASTAPI_ENV=development -e PYTHONWARNINGS=ignore::UserWarning -v "$PWD/backend/app:/app/backend/app:ro" -v "$PWD/backend/tests:/app/backend/tests:ro" backend bash -c 'bash scripts/lint.sh && ruff check tests/api/routes/test_rbac.py && ruff format --check tests/api/routes/test_rbac.py'
+```
+
+#### 21. Generated the route tree, built the frontend, and ran the explicit application TypeScript check. All passed.
+
+```sh
+cd frontend && bunx --no-install vite build && bun run build && bunx --no-install tsc -p tsconfig.build.json --noEmit
+```
+
+#### 22. 63 tests passed and one failed because SQLModel class-keyword configuration ignored an extra role field and returned 200 instead of 422. The chained seed steps did not run. Switched the input schemas to explicit Pydantic configuration after testing an alternative.
+
+```sh
+docker compose -f compose.yml -p fastapi-rbac-verification run --no-deps --rm -e FASTAPI_ENV=development -e PYTHONWARNINGS=ignore::UserWarning -e SMTP_HOST=mailpit -e SMTP_PORT=1025 -e SMTP_TLS=false -v "$PWD/backend/app:/app/backend/app:ro" -v "$PWD/backend/tests:/app/backend/tests:ro" backend bash -c 'pytest -q && python -m app.initial_data && python -m app.seed && python -m app.seed'
+```
+
+#### 23. Biome passed across 76 files.
+
+```sh
+cd frontend && bunx --no-install biome check --no-errors-on-unmatched --files-ignore-unknown=true ./
+```
+
+#### 24. Checked whitespace, changed files, Playwright environment loading, and generated exports. Passed.
+
+```sh
+git diff --check && git status --short --branch; cat frontend/tests/config.ts; git diff -- frontend/src/client/index.ts
+```
+
+#### 25. Reviewed browser login/logout helpers, sidebar labels, and API changes. Passed.
+
+```sh
+cat frontend/tests/utils/user.ts; cat frontend/src/components/Sidebar/Main.tsx; git diff -- backend/app/models.py backend/app/api/routes/users.py
+```
+
+#### 26. Checked the scope of the manager's read-only table assertion and Git state. Passed.
+
+```sh
+rg -n 'Button|button|<Table' frontend/src/components/Common/DataTable.tsx; git status --short --branch; git log -2 --oneline
+```
+
+#### 27. Started the API on the disposable Docker network for Playwright. Passed.
+
+```sh
+docker compose -f compose.yml -p fastapi-rbac-verification run -d --use-aliases --no-deps --name fastapi-rbac-verification-api -e FASTAPI_ENV=development -e PYTHONWARNINGS=ignore::UserWarning -e SMTP_HOST=mailpit -e SMTP_PORT=1025 -e SMTP_TLS=false -v "$PWD/backend/app:/app/backend/app:ro" backend fastapi run --host 0.0.0.0
+```
+
+#### 28. Passed Biome and the TypeScript check including test sources.
+
+```sh
+cd frontend && bunx --no-install biome check --no-errors-on-unmatched --files-ignore-unknown=true ./ && bunx --no-install tsc -p tsconfig.json --noEmit
+```
+
+#### 29. Mypy accepted the dictionary-based SQLModel config, but ty rejected it. The chain stopped before tests and seed. Fixed by making the signup and profile request models Pydantic BaseModels with ConfigDict.
+
+```sh
+docker compose -f compose.yml -p fastapi-rbac-verification run --no-deps --rm -e FASTAPI_ENV=development -e PYTHONWARNINGS=ignore::UserWarning -e SMTP_HOST=mailpit -e SMTP_PORT=1025 -e SMTP_TLS=false -v "$PWD/backend/app:/app/backend/app:ro" -v "$PWD/backend/tests:/app/backend/tests:ro" backend bash -c 'bash scripts/lint.sh && pytest -q --tb=line && python -m app.initial_data && python -m app.seed && python -m app.seed'
+```
+
+#### 30. Exported OpenAPI with the intermediate dictionary-based config. Passed.
+
+```sh
+docker compose -f compose.yml -p fastapi-rbac-verification run --no-deps --rm -e FASTAPI_ENV=development -e PYTHONWARNINGS=ignore::UserWarning -e SMTP_HOST=mailpit -e SMTP_PORT=1025 -e SMTP_TLS=false -v "$PWD/backend/app:/app/backend/app:ro" -v "$PWD/backend/tests:/app/backend/tests:ro" backend python -c 'import app.main; import json; print(json.dumps(app.main.app.openapi()))' > frontend/openapi.json
+```
+
+#### 31. Created the feature branch. Passed.
+
+```sh
+git switch -c codex/rbac
+```
+
+#### 32. Regenerated the intermediate SDK, removed temporary OpenAPI, and checked whitespace. Passed.
+
+```sh
+bun run --filter frontend generate-client && python3 -c 'from pathlib import Path; Path("frontend/openapi.json").unlink()' && git diff --check
+```
+
+#### 33. Final backend checks passed. Mypy, ty, Ruff lint, and Ruff format passed. All 64 tests passed, bootstrap data was created, and both seed runs succeeded.
+
+```sh
+docker compose -f compose.yml -p fastapi-rbac-verification run --no-deps --rm -e FASTAPI_ENV=development -e PYTHONWARNINGS=ignore::UserWarning -e SMTP_HOST=mailpit -e SMTP_PORT=1025 -e SMTP_TLS=false -v "$PWD/backend/app:/app/backend/app:ro" -v "$PWD/backend/tests:/app/backend/tests:ro" backend bash -c 'bash scripts/lint.sh && pytest -q --tb=line && python -m app.initial_data && python -m app.seed && python -m app.seed'
+```
+
+#### 34. Exported development OpenAPI from the final Pydantic request schemas. Passed.
+
+```sh
+docker compose -f compose.yml -p fastapi-rbac-verification run --no-deps --rm -e FASTAPI_ENV=development -e PYTHONWARNINGS=ignore::UserWarning -e SMTP_HOST=mailpit -e SMTP_PORT=1025 -e SMTP_TLS=false -v "$PWD/backend/app:/app/backend/app:ro" -v "$PWD/backend/tests:/app/backend/tests:ro" backend python -c 'import app.main; import json; print(json.dumps(app.main.app.openapi()))' > frontend/openapi.json
+```
+
+#### 35. Reloaded the disposable API with final input validation. Passed.
+
+```sh
+docker restart fastapi-rbac-verification-api
+```
+
+#### 36. Confirmed signup drops its confirmation field and detected the host-only API origin in the initial frontend bundle. Passed. The final container-equivalent build used an empty Vite API origin for same-origin requests.
+
+```sh
+sed -n '24,105p' frontend/src/routes/signup.tsx; cat frontend/src/components/UserSettings/DeleteConfirmation.tsx; rg -l --fixed-strings 'http://localhost:8000' backend/app/frontend/assets -g '*.js'; git status --short --branch
+```
+
+#### 37. Reviewed generated role fields and auth wiring. The FASTAPI_ENV search printed no matches in those two files. The command completed.
+
+```sh
+rg -n 'role|capabilities' frontend/src/client/types.gen.ts | head -14; rg -n 'FASTAPI_ENV' backend/scripts/prestart.sh development.md; git diff -- frontend/src/hooks/useAuth.ts frontend/src/routes/_layout/admin.tsx
+```
+
+#### 38. Final SDK regeneration, production-style build, TypeScript, and Biome all passed. Biome checked 76 files.
+
+```sh
+bun run --filter frontend generate-client && python3 -c 'from pathlib import Path; Path("frontend/openapi.json").unlink()' && cd frontend && VITE_API_URL= bun run build && bunx --no-install tsc -p tsconfig.json --noEmit && bunx --no-install biome check --no-errors-on-unmatched --files-ignore-unknown=true ./
+```
+
+#### 39. API health passed. Chromium passed 47 of 48 checks. The old Settings test expected the admin Danger zone tab. Updated the admin assertion and added member visibility coverage.
+
+```sh
+docker exec fastapi-rbac-verification-api curl -fsS http://localhost:8000/api/v1/utils/health-check/ && docker run --rm --ipc=host --network fastapi-rbac-verification_default -e PLAYWRIGHT_BASE_URL=http://backend:8000 -e VITE_API_URL=http://backend:8000 -e MAILPIT_HOST=http://mailpit:8025 -v "$PWD/.env:/app/.env:ro" -v "$PWD/frontend/src:/app/frontend/src:ro" -v "$PWD/frontend/tests:/app/frontend/tests:ro" -v "$PWD/frontend/playwright.config.ts:/app/frontend/playwright.config.ts:ro" fastapi_rbac-playwright:latest bunx playwright test admin.spec.ts user-settings.spec.ts sign-up.spec.ts login.spec.ts --workers=2 --reporter=line
+```
+
+#### 40. Committed the verified backend as 2a4a074.
+
+```sh
+git add -- backend/app/api backend/app/core/db.py backend/app/models.py backend/app/seed.py backend/app/alembic/versions/aa8de69f2b13_add_user_roles.py backend/tests && git diff --cached --check && git commit -m 'Add persisted roles and enforce API permissions'
+```
+
+#### 41. Confirmed access to create the remote feature branch. Dry run passed.
+
+```sh
+GIT_TERMINAL_PROMPT=0 git push --dry-run origin HEAD:refs/heads/codex/rbac
+```
+
+#### 42. Located the legacy Settings expectation and reviewed the pending frontend changes. Passed.
+
+```sh
+sed -n '1,45p' frontend/tests/user-settings.spec.ts; rg -n 'tabs|Danger zone|Delete Account' frontend/tests/user-settings.spec.ts; git status --short --branch; git diff --stat
+```
+
+#### 43. Formatted the updated test and passed full frontend Biome and TypeScript checks.
+
+```sh
+cd frontend && bunx --no-install biome check --write tests/user-settings.spec.ts && bunx --no-install biome check --no-errors-on-unmatched --files-ignore-unknown=true ./ && bunx --no-install tsc -p tsconfig.json --noEmit
+```
+
+#### 44. Ran the complete Chromium Playwright suite. All 64 checks passed in 17.8 seconds.
+
+```sh
+docker run --rm --ipc=host --network fastapi-rbac-verification_default -e PLAYWRIGHT_BASE_URL=http://backend:8000 -e VITE_API_URL=http://backend:8000 -e MAILPIT_HOST=http://mailpit:8025 -v "$PWD/.env:/app/.env:ro" -v "$PWD/frontend/src:/app/frontend/src:ro" -v "$PWD/frontend/tests:/app/frontend/tests:ro" -v "$PWD/frontend/playwright.config.ts:/app/frontend/playwright.config.ts:ro" fastapi_rbac-playwright:latest bunx playwright test --workers=2 --reporter=dot
+```
+
+#### 45. Checked pending changes and whitespace before committing. Passed.
+
+```sh
+git diff --check && git diff --name-only && git status --short --branch
+```
+
+#### 46. Cleaned up the disposable verification project. Compose emitted a redundant stop error while removing the already-stopped API, then removed the containers, database volume, and network and exited successfully.
+
+```sh
+docker stop fastapi-rbac-verification-api fastapi-rbac-verification-smtp && docker compose -f compose.yml -p fastapi-rbac-verification down -v --remove-orphans
+```
+
+#### 47. Committed the verified frontend as 44413cf.
+
+```sh
+git add -- frontend/src frontend/tests/admin.spec.ts frontend/tests/user-settings.spec.ts && git diff --cached --check && git commit -m 'Gate frontend routes and controls by capability'
+```
+
+#### 48. Appended the Phase 3 conversation entry and checked whitespace. Passed. The placeholders omit the inline log program and entry already printed above.
+
+```sh
+python3 -c '<inline Python append of Turn 2>' '<Turn 2 entry>' && git diff --check
+```
+
+#### 49. Committed README and Turn 2 as c95a68f. Published codex/rbac and set up remote tracking.
+
+```sh
+git add -- README.md docs/codex-log.md && git diff --cached --check && git commit -m 'Document RBAC setup and permissions' && GIT_TERMINAL_PROMPT=0 git push -u origin codex/rbac
+```
+
+#### 50. Verified the feature branch history and unchanged development fixture and Playwright helper. Only the pre-existing untracked AGENTS.md was reported.
+
+```sh
+git diff --check origin/master...HEAD && git log -4 --oneline && git status --short --branch && git diff --exit-code origin/master...HEAD -- backend/app/api/routes/private.py frontend/tests/utils/privateApi.ts
+```
+
+### Verification summary
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Alembic upgrade and legacy role backfill | `alembic upgrade fe56fa70289e`, fixture INSERT, `alembic upgrade head`, `alembic check`, and the recorded PostgreSQL assertion | Passed. Legacy superuser and regular rows became `admin` and `member`. |
+| Demo seed | `python -m app.seed && python -m app.seed` | Both runs passed, and the final recheck repeated both successfully. |
+| Backend tests | `bash scripts/tests-start.sh` and final `pytest -q --tb=line` | 64 passed, including six RBAC tests. |
+| Chromium Playwright | `bunx playwright test --workers=2 --reporter=dot` in the Playwright image | 64 passed. |
+| Frontend build | `VITE_API_URL= bun run build` from `frontend/` | Passed. |
+| TypeScript | `bunx --no-install tsc -p tsconfig.json --noEmit` and `bunx --no-install tsc -p tsconfig.build.json --noEmit` from `frontend/` | Both passed. |
+| Backend lint and type checks | `bash scripts/lint.sh` | Mypy, ty, Ruff lint, and Ruff format passed on final code. |
+| Biome | `bunx --no-install biome check --no-errors-on-unmatched --files-ignore-unknown=true ./` from `frontend/` | Passed across 76 files. |
+
+### Scope of verification
+
+- Downgrade and re-upgrade were skipped at the user's request.
+- Phase 3 used a disposable database, a source-mounted backend image, and the built frontend. A fresh Docker image build, `docker compose watch`, and the root volume-resetting `scripts/test.sh` were not run. The same backend coverage wrapper ran directly in the disposable container.
+- Firefox and WebKit were not run. The repository's enabled Playwright browser project is Chromium.
+- No production or staging deployment was exercised. Metrics has a placeholder response and no production data source to verify.
