@@ -1,0 +1,4 @@
+region         = "us-east-1"
+name           = "ghost-blog"
+domain         = "blog.example.com"
+hosted_zone_id = "Z00000000000000000000"
