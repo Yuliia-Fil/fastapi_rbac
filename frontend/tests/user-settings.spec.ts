@@ -4,8 +4,6 @@ import { createUser } from "./utils/privateApi.ts"
 import { randomEmail, randomPassword } from "./utils/random"
 import { logInUser, logOutUser } from "./utils/user"
 
-const tabs = ["My profile", "Password", "Danger zone"]
-
 test("My profile tab is active by default", async ({ page }) => {
   await page.goto("/settings")
   await expect(page.getByRole("tab", { name: "My profile" })).toHaveAttribute(
@@ -14,11 +12,13 @@ test("My profile tab is active by default", async ({ page }) => {
   )
 })
 
-test("All tabs are visible", async ({ page }) => {
+test("Admin can edit their profile and cannot delete their own account", async ({
+  page,
+}) => {
   await page.goto("/settings")
-  for (const tab of tabs) {
-    await expect(page.getByRole("tab", { name: tab })).toBeVisible()
-  }
+  await expect(page.getByRole("tab", { name: "My profile" })).toBeVisible()
+  await expect(page.getByRole("tab", { name: "Password" })).toBeVisible()
+  await expect(page.getByRole("tab", { name: "Danger zone" })).toHaveCount(0)
 })
 
 test.describe("Edit user profile", () => {
@@ -36,6 +36,13 @@ test.describe("Edit user profile", () => {
     await logInUser(page, email, password)
     await page.goto("/settings")
     await page.getByRole("tab", { name: "My profile" }).click()
+  })
+
+  test("Member can access account deletion", async ({ page }) => {
+    await page.getByRole("tab", { name: "Danger zone" }).click()
+    await expect(
+      page.getByRole("button", { name: "Delete Account" }),
+    ).toBeVisible()
   })
 
   test("Edit user name with a valid name", async ({ page }) => {

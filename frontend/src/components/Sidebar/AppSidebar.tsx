@@ -1,4 +1,4 @@
-import { Briefcase, Home, Users } from "lucide-react"
+import { Briefcase, ChartNoAxesCombined, Home, Users } from "lucide-react"
 
 import { SidebarAppearance } from "@/components/Common/Appearance"
 import { Logo } from "@/components/Common/Logo"
@@ -9,6 +9,7 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar"
 import useAuth from "@/hooks/useAuth"
+import { hasCapability } from "@/lib/permissions"
 import { type Item, Main } from "./Main"
 import { User } from "./User"
 
@@ -20,9 +21,17 @@ const baseItems: Item[] = [
 export function AppSidebar() {
   const { user: currentUser } = useAuth()
 
-  const items = currentUser?.is_superuser
-    ? [...baseItems, { icon: Users, title: "Admin", path: "/admin" }]
-    : baseItems
+  const items = [...baseItems]
+  if (hasCapability(currentUser, "list_users")) {
+    items.push({ icon: Users, title: "Users", path: "/admin" })
+  }
+  if (hasCapability(currentUser, "view_metrics")) {
+    items.push({
+      icon: ChartNoAxesCombined,
+      title: "Metrics",
+      path: "/metrics",
+    })
+  }
 
   return (
     <Sidebar collapsible="icon">
