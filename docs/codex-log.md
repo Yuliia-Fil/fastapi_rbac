@@ -1256,3 +1256,40 @@ The fresh-clone transcript and API/Chromium tables above were appended from the 
 | Headed Chromium verification | 12 of 12 passed. Nine screenshots saved. |
 | Backend tests using the corrected README command | 64 passed. |
 | Repository hygiene and README audit | Pass. Two expected template environment paths and all requested documentation found. |
+
+---
+### [2026-11-25 11:12] Turn 6
+**User prompt:**
+Fix the README backend test instructions, then finish the verification.
+
+1. In ../fastapi_rbac_check, find why the README's backend test command collected 0 tests (tests/ not found inside the container). Check the compose volume mounts and the scripts (scripts/test.sh, backend/scripts/tests-start.sh, backend Dockerfile). Find a test command that works from a fresh clone, run it, and show the result (expected: 64 tests pass).
+2. Apply the minimal fix in the original project folder (README, or the script/compose config if that is the real cause), on master. Do not change RBAC logic.
+3. Re-run the fixed command in the fresh clone to confirm. Run docker compose down -v afterwards.
+4. Complete the skipped checks: git ls-files | grep -i "\.env" (the tracked template .env files are expected), and the README audit (run instructions, seed, tests, migrations, permission matrix, 2-4 paragraphs on the approach).
+5. Copy the screenshots from /tmp/rbac-check/ into docs/verification/ in the original project, add the API and Chromium result tables to docs/codex-log.md, and add the fresh-clone verification entries to the log there.
+6. Commit "Fix README test instructions and add verification results", git pull --rebase origin master, git push origin master (no force-push). Report git log --oneline (last 5) and git status.
+
+**Codex response:**
+Fixed the fresh-clone test workflow and pushed it to `origin/master` without force. The development Compose override now mounts `backend/tests` read-only, and the README explains why the test command works from a fresh clone. The exact README command collected and **passed all 64 tests**. Both disposable database volumes were removed. [README test instructions](/Users/yulia/Desktop/Code/fastapi_rbac/README.md:35)
+
+The repo-hygiene check found only the two expected template files, `.env` and `frontend/.env`. The README passed all six audit checks, including three paragraphs explaining the authorization approach. The log contains the **18 passing API checks** and **12 passing headed Chromium checks**, with nine screenshots in the repository. [Verification log](/Users/yulia/Desktop/Code/fastapi_rbac/docs/codex-log.md) · [Screenshots](/Users/yulia/Desktop/Code/fastapi_rbac/docs/verification/)
+
+**Last five commits at the fix push**, before the separate commit recording this reply
+
+```text
+c112b9d Fix README test instructions and add verification results
+f6733fd Update Codex log
+545afba Merge branch 'codex/rbac'
+af2b945 Add verification log
+c95a68f Document RBAC setup and permissions
+```
+
+**Git status**. `master` is in sync with `origin/master`, and the tracked worktree is clean. The pre-existing `AGENTS.md` remains untracked.
+
+```text
+## master...origin/master
+?? AGENTS.md
+```
+
+**Actions:** Diagnosed the missing test mount, verified both runs, audited the README and tracked environment paths, copied nine screenshots, imported the fresh-clone log and result tables, and committed, rebased, and pushed master.
+---
