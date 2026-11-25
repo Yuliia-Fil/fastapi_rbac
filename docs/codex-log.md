@@ -1393,3 +1393,94 @@ I created `codex/ghost-deploy` from `master` and committed only the conversation
 
 **Actions:** Inspected Git and available tools, consulted provider and Ghost documentation, created codex/ghost-deploy from master, and appended the options and plan to the log.
 ---
+
+---
+### [2026-11-25 11:38] Turn 8 (recorded after interruption)
+**User prompt:**
+Approved, start Phase 3 with these adjustments:
+1. Simplify: do NOT block Ghost Admin on the public proxy and do NOT add the loopback HTTPS listener or private CA. The Ghost admin stays on the public site, protected by Ghost's own login. Mention in the README, in one or two sentences, that it can be restricted later. The no-public-SSH requirement (SSM only, no inbound port 22) stays exactly as planned.
+2. Answers: (1) AWS us-east-1 is fine; (2) I have no real domain or Route 53 zone, so make the domain and hosted zone variables with placeholder values in terraform.tfvars.example; (3) a plain blog without memberships or newsletters is enough.
+3. The untracked AGENTS.md: leave it alone and do not commit it on this branch unless it is already tracked on master.
+4. Everything else as in the plan, including Phase 4 (merge to master only if all conditions are met).
+Remember to log this turn in docs/codex-log.md.
+
+**Codex response:**
+[No final reply. The turn was interrupted.]
+
+**Actions:** Started the Ghost AWS, SSM, and Compose implementation. The turn was interrupted before closeout.
+---
+
+---
+### [2026-11-25 11:38] Turn 9
+**User prompt:**
+Stop all verification. Do NOT run terraform, shellcheck, docker, tests or any long command from now on. Only read files and use git.
+
+The previous run was interrupted, so first check the current state:
+
+## 1. Inspect the current state
+- git status and git branch: confirm you are on codex/ghost-deploy and show which files exist under infra/ghost/ and which are uncommitted.
+- Do not rely on memory of what you wrote before the interruption. Open each file and check it is complete (not cut off mid-file, no placeholders like TODO or "..." left in).
+
+## 2. Completeness check (reading only)
+Confirm infra/ghost/ contains everything from the approved plan, and create or finish whatever is missing or half-written:
+- Terraform: versions.tf, main.tf, variables.tf, outputs.tf (VPC/network, security group with ONLY inbound 80/443 and NO rule for port 22, IAM role + instance profile for SSM, EC2 with IMDSv2 and encrypted disk, Elastic IP, Route 53 record)
+- user-data.sh.tftpl and configure-host.sh
+- compose.yml (pinned Ghost, MySQL 8, Caddy; no public ports except 80/443 on Caddy), Caddyfile, backup.sh
+- deploy.sh (one command: prerequisite checks, terraform apply, wait for SSM, configure host, print URL and the SSM shell command) with a --dry-run mode, and destroy.sh (confirmation required)
+- terraform.tfvars.example with placeholder domain and hosted zone values
+- .gitignore (real tfvars, state, plans, local secrets)
+- README.md with: prerequisites, required credentials, how to run the one-click deploy, how to open a shell through the tunnel (aws ssm start-session), how to verify port 22 is closed from the internet, update, backup, destroy, a short explanation of the security design, and a clear section "Not verified" listing everything that was not run
+- Admin simplification as agreed: Ghost Admin stays public behind Ghost's own login; no loopback HTTPS listener, no private CA.
+
+Read through the files and fix obvious mistakes you can see by reading (wrong variable names between files, missing outputs used by deploy.sh, references to files that do not exist).
+
+## 3. Security read-through (no commands except grep)
+- Grep that no real secrets are in the files (passwords, keys, tokens). Placeholders only.
+- Confirm port 22 is not opened anywhere and no key pair is required.
+
+## 4. Commit and push
+- Update docs/codex-log.md with this turn and an honest note: "Verification (terraform validate, shellcheck, compose config, mocked tests, dry-run) was NOT run because the previous run was interrupted. The files were only reviewed by reading." Do not claim anything was tested.
+- Make sure the same "Not verified" statement is in infra/ghost/README.md.
+- Do not commit AGENTS.md on this branch unless it is already tracked on master.
+- Commit in 2-3 small logical commits (for example: Terraform infrastructure, host and Compose configuration, deploy/destroy scripts and README) and push codex/ghost-deploy. Do not merge to master.
+
+## 5. Report
+Reply briefly with: the list of files in infra/ghost/, anything you had to fix or finish, git log --oneline (last 8), git status, and the list of what is NOT verified.
+
+**Codex response:**
+Pushed [`codex/ghost-deploy`](https://github.com/Yuliia-Fil/fastapi_rbac/commits/codex/ghost-deploy/). No merge happened.
+
+**Files under `infra/ghost/`**
+
+- Terraform and inputs — `versions.tf`, `main.tf`, `variables.tf`, `outputs.tf`, `terraform.tfvars.example`, `tests/ghost.tftest.hcl`, `.gitignore`
+- Host and services — `user-data.sh.tftpl`, `configure-host.sh`, `compose.yml`, `Caddyfile`, `backup.sh`
+- Operations — `deploy.sh`, `destroy.sh`, `README.md`
+
+Pinned the AWS provider, fixed write permissions for non-root Caddy, and limited published ports to 80/443. The read-through found no SSH ingress rule, SSH key-pair requirement, or hardcoded credentials. Ghost Admin uses its own public-site login. [Deployment README](/Users/yulia/Desktop/Code/fastapi_rbac/infra/ghost/README.md)
+
+**Not verified.** The final files were reviewed by reading only. Terraform checks, ShellCheck, Compose config, mocked tests, dry run, local smoke test, and RBAC tests were not run on this revision. The Terraform checksum lockfile is pending initialization. Live AWS, SSM, DNS, HTTPS, external port exposure, backup, restore, and teardown remain unverified.
+
+**Last eight commits before the separate conversation-log commit**
+
+```text
+948c0f9 Add Ghost Compose deployment and operations
+5d3480a Define Ghost AWS infrastructure and SSM bootstrap
+535c0fe Update Codex log
+a4f35ec Update Codex log
+c112b9d Fix README test instructions and add verification results
+f6733fd Update Codex log
+545afba Merge branch 'codex/rbac'
+af2b945 Add verification log
+```
+
+**Git status**
+
+```text
+## codex/ghost-deploy...origin/codex/ghost-deploy
+?? AGENTS.md
+```
+
+**Actions:** Read all Ghost files, fixed configuration gaps, grepped for credential and exposure references, and committed and pushed the feature branch.
+
+Verification (terraform validate, shellcheck, compose config, mocked tests, dry-run) was not run on the final files because the previous run was interrupted. The final files were only reviewed by reading.
+---
